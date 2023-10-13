@@ -25,15 +25,11 @@
 */
 
 
-/*
-	自陣だったら建築しない
-	障害物判定がなんか変
-	端まで使ってる
-*/
-
 #include <bits/stdc++.h>
 #include "json.hpp"
 using namespace std;
+
+const int MAX = 2147483647;
 
 int people;//職人の人数
 int turn_max = 0;//maxターン数
@@ -46,27 +42,29 @@ vector<vector<int>> territories(30,vector<int> (30));//領地の状況
 vector<vector<int>> masons(30,vector<int> (30));//職人位置一時保管用
 vector<pair<int,int>> mason(20);//職人の座標({x,y})
 vector<pair<int,int>> vsmason(20);//相手職人の座標({x,y})
-vector<tuple<int,int,int,bool,bool>> mason_info(20,{-1,-1,-1,false,false});//職人の情報を保管
-//tuple(0:行動中のパターン1:現在行動ステップ 2:終了ステップ 3:行動中表示 4:障害物回避行動中表示)
+vector<tuple<int,int,int,bool,bool,bool>> mason_info(20,{-1,-1,-1,false,false,false});//職人の情報を保管
+//tuple(0:行動中のパターン1:現在行動ステップ 2:終了ステップ 3:行動中表示 4:障害物回避行動中表示 5:特定事象中表示)
 bool first;//先攻後攻
 vector<vector<int>> score(10,vector<int> (30));//評価点格納(人数*17パターンしかないね)
 vector<pair<int,int>> result_move(10);//確定移動パターン
 vector<stack<pair<int,int>>> emagency_move(10);//回避行動保持用
+vector<bool> succeeded(20,false);
 
 vector<pair<int,int>> move_pat{{0,0},{-1,-1},{-1,0},{-1,1},{0,1},{1,1},{1,0},{1,-1},{0,-1},{0,0}};
 
-vector<vector<pair<int,int>>> move_cource{{{2,8},{2,2},{1,4},{2,2},{2,4},{1,5},{2,4},{2,6},{1,7},{2,6},{2,8},{1,1},{2,8}},//1,(縦5横5)13ターン,陣地6城壁9
-																					{{2,8},{2,2},{1,4},{2,2},{2,4},{1,6},{2,4},{2,6},{1,7},{2,6},{2,8},{1,1},{2,8}},//2,(1の左右反転)13ターン,陣地6城壁9
-																					{{2,8},{2,2},{2,4},{1,5},{2,4},{2,6},{1,7},{2,6},{2,8},{1,1},{2,8}},//3,(縦5横5)11ターン,陣地5城壁8
-																					{{2,8},{2,2},{1,4},{2,2},{2,4},{1,6},{2,4},{1,6},{2,4},{2,6},{2,8},{1,1},{2,8}},//4,(縦5横4)13ターン,陣地5城壁9
-																					{{2,8},{2,2},{1,4},{2,2},{2,4},{1,6},{2,4},{2,6},{2,8}},//5,(縦4横4)9ターン,陣地3城壁7         移動:1 建築:2
-																					{{2,8},{2,2},{2,4},{2,6}}};//6,(縦3横3)4ターン,陣地1城壁4(動けないとき専用)
+vector<vector<pair<int,int>>> move_cource{{{2,8},{2,2},{1,4},{2,2},{2,4},{1,5},{2,4},{2,6},{1,7},{2,6},{2,8},{1,1},{2,8},{1,7}},//1,(縦5横5)13ターン,陣地6城壁9
+											{{2,8},{2,2},{1,4},{2,2},{2,4},{1,6},{2,4},{2,6},{1,7},{2,6},{2,8},{1,1},{2,8},{1,7}},//2,(1の左右反転)13ターン,陣地6城壁9
+											{{2,8},{2,2},{2,4},{1,5},{2,4},{2,6},{1,7},{2,6},{2,8},{1,1},{2,8},{1,7}},//3,(縦5横5)11ターン,陣地5城壁8
+											{{2,8},{2,2},{1,4},{2,2},{2,4},{1,6},{2,4},{1,6},{2,4},{2,6},{2,8},{1,1},{2,8},{1,7}},//4,(縦5横4)13ターン,陣地5城壁9
+											{{2,8},{2,2},{1,4},{2,2},{2,4},{1,6},{2,4},{2,6},{2,8},{1,7}},//5,(縦4横4)9ターン,陣地3城壁7         移動:1 建築:2
+											{{2,8},{2,2},{2,4},{2,6}}};//6,(縦3横3)4ターン,陣地1城壁4(動けないとき専用)
 
 /*vector<vector<pair<int,int>>> hosei{{{0,0},{0,0},{0,1},{0,1},{0,1},{1,2},{1,2},{1,2},{2,1},{2,1},{2,1},{1,0},{1,0}},//1,(縦5横5)13ターン,陣地6城壁9
 																		{{0,1},{0,1},{0,2},{0,2},{0,2},{1,2},{1,2},{1,2},{2,1},{2,1},{2,1},{1,0},{1,0}},//2,(1の左右反転)13ターン,陣地6城壁9
 																		{{2,8},{2,2},{2,4},{1,5},{2,4},{2,6},{1,7},{2,6},{2,8},{1,1},{2,8}},//3,(縦5横5)11ターン,陣地5城壁8
 																		{{2,8},{2,2},{1,4},{2,2},{2,4},{1,6},{2,4},{1,6},{2,4},{2,6},{2,8},{1,1},{2,8}},//4,(縦5横4)13ターン,陣地5城壁9
 																		{{2,8},{2,2},{1,4},{2,2},{2,4},{1,6},{2,4},{2,6},{2,8}}};//5,(縦4横4)9ターン,陣地3城壁7         移動:1 建築:2*/
+
 
 int kaiseki(){
 	ifstream ifs("./hozon.json");
@@ -171,7 +169,18 @@ int kaiseki_loop(){
 		for(int j = 0; j < width; j++){
 			masons[i][j] = jobj["board"]["masons"].at(i).at(j);
 		}
-	}  
+	}
+
+	if(turn >= 5){
+		for(int i = 1; i <= people; i++){
+			if(jobj["logs"].at(turn-3)["actions"].at(i-1)["succeeded"] == false & jobj["logs"].at(turn-5)["actions"].at(i-1)["succeeded"] == false){
+				succeeded[i] = true;
+			}
+			else{
+				succeeded[i] = false;
+			}
+		}
+	}
 
 	//cout << "turn:" << turn << endl;
 
@@ -321,8 +330,90 @@ int hyouka(int n, int m){
 		}
 	}
 	else if(m == 2){
-		if()//自陣内のとき
-		if(move_cource[get<0>(mason_info[n])][get<1>(mason_info[n])].first == 1){
+		if(get<5>(mason_info[n])){
+			get<5>(mason_info[n]) = false;
+			get<1>(mason_info[n])--;
+		}
+		if(territories[mason[n].first + move_pat[move_cource[get<0>(mason_info[n])][get<1>(mason_info[n])].second].first][mason[n].second + move_pat[move_cource[get<0>(mason_info[n])][get<1>(mason_info[n])].second].second] == 1){
+			if(territories[mason[n].first][mason[n].second] != 1){
+				vector<int> width_ex(30,0);
+
+				width_ex[2] = mason[n].first;
+				width_ex[6] = height - mason[n].first;
+				width_ex[4] = width - mason[n].second;
+				width_ex[8] = mason[n].second;
+
+				int max_ex = 2;
+
+				for(int i = 4; i <= 8; i++){
+					if(width_ex[max_ex] < width_ex[i]){
+						max_ex = i;
+					}
+				}
+				result_move[n] = {1,max_ex};
+			}
+			else{
+				vector<int> width_ex(30,0);
+
+				for(int i = 1; i <= 8; i++){
+					int move_size = 1;
+					int move_x,move_y;
+					move_x = move_pat[i].first;
+					move_y = move_pat[i].second;
+					//cout << move_x << " " << move_y << endl;
+					int loop_num = 0;
+					while(true){
+						//cout << mason[n].first + move_x << " " << mason[n].second + move_y << endl;
+						if(loop_num >= 100){
+							cout << "error" << endl;
+							break;
+						}
+						if(mason[n].first + move_x < 0){
+							width_ex[i] = MAX;
+							break;
+						}
+						else if(mason[n].second + move_y < 0){
+							width_ex[i] = MAX;
+							break;
+						}
+						else if(mason[n].first + move_x >= height){
+							width_ex[i] = MAX;
+							break;
+						}
+						else if(mason[n].second + move_y >= height){
+							width_ex[i] = MAX;
+							break;
+						}
+						else if(territories[mason[n].first + move_x][mason[n].second + move_y] != 1){
+							if(board[mason[n].first + move_x][mason[n].second + move_y] == 1){
+								width_ex[i] = MAX;
+							}
+							else{
+								width_ex[i] = move_size + width+height - mason[n].first - mason[n].second;
+							}
+							break;
+						}
+						else{
+							move_size++;
+							move_x = move_pat[i].first;
+							move_y = move_pat[i].second;
+							loop_num++;
+						}
+					}
+				}
+
+				int min_ex = 1;
+
+				for(int i = 2; i <= 8; i++){
+					if(width_ex[min_ex] > width_ex[i]){
+						min_ex = i;
+					}
+				}
+				result_move[n] = {1,min_ex};
+				get<3>(mason_info[n]) = false;
+			}
+		}
+		else if(move_cource[get<0>(mason_info[n])][get<1>(mason_info[n])].first == 1){
 			if(walls[mason[n].first + move_pat[move_cource[get<0>(mason_info[n])][get<1>(mason_info[n])].second].first][mason[n].second + move_pat[move_cource[get<0>(mason_info[n])][get<1>(mason_info[n])].second].second] == 0){
 				result_move[n] = {1,move_cource[get<0>(mason_info[n])][get<1>(mason_info[n])].second};
 				get<1>(mason_info[n])++;
@@ -522,25 +613,6 @@ int hyouka(int n, int m){
 	return 1;
 }
 
-/*
-	移動タイプ
-	滞在:0
-	移動:1
-	建築:2
-	解体:3
-
-	方向
-	無方向:0
-	左上:1
-	上:2
-	右上:3
-	右:4
-	右下:5
-	下:6
-	左下:7
-	左:8
-*/
-
 void move(){
 	for(int p = 1; p <= people; p++){
 		if(get<4>(mason_info[p])){//緊急回避行動中
@@ -548,6 +620,26 @@ void move(){
 		}
 		else if(get<3>(mason_info[p])){//移動実行中
 			int memo_hyouka = hyouka(p,2);
+			if(get<3>(mason_info[p]) == move_cource.size()-1){
+				if(territories[mason[p].first-1][mason[p].second] == 1 | territories[mason[p].first+1][mason[p].second] == 1){
+					get<1>(mason_info[p])--;
+					if(mason[p].second < width/2){
+						result_move[p] = {1,4};
+					}
+					else{
+						result_move[p] = {1,8};
+					}
+				}
+				else if(territories[mason[p].first][mason[p].second-1] == 1 | territories[mason[p].first][mason[p].second+1] == 1){
+					get<1>(mason_info[p])--;
+					if(mason[p].second < height/2){
+						result_move[p] = {1,6};
+					}
+					else{
+						result_move[p] = {1,2};
+					}
+				}
+			}
 			if(memo_hyouka == 0){
 				p--;
 				continue;
@@ -583,7 +675,56 @@ void move(){
 				}
 			}
 			if(max_score != 0){
-				result_move[p] = {move_cource[max_score_itr][0].first,move_cource[max_score_itr][0].second};
+				if(max_score_itr == move_cource.size()-1){
+					if(turn == 1 | turn == 2){
+						get<5>(mason_info[p]) = false;
+						result_move[p] = {move_cource[max_score_itr][0].first,move_cource[max_score_itr][0].second};
+					}
+					else{
+						get<5>(mason_info[p]) = true;//奇数番号に動くか、偶数番号に2回動くか
+						vector<int> width_ex(30,0);
+
+						width_ex[2] = mason[p].first;
+						width_ex[6] = height - mason[p].first;
+						width_ex[4] = width - mason[p].second;
+						width_ex[8] = mason[p].second;
+
+						width_ex[1] = (width_ex[8] + width_ex[2])/2;
+						width_ex[3] = (width_ex[2] + width_ex[4])/2;
+						width_ex[5] = (width_ex[4] + width_ex[6])/2;
+						width_ex[7] = (width_ex[6] + width_ex[8])/2;
+
+						for(int i = 1; i < 8; i += 2){
+							if(board[mason[p].first + move_pat[i].first][mason[p].second + move_pat[i].second] == 1){
+								width_ex[i] = -1;
+							}
+						}
+
+						width_ex[0] = 0;
+						int max_ex = 0;
+
+						for(int i = 1; i < 8; i+=2){
+							if(width_ex[max_ex] < width_ex[i]){
+								max_ex = i;
+							}
+						}
+
+						if(max_ex == 0){
+							max_ex = 2;
+							for(int i = 4; i <= 8; i++){
+								if(width_ex[max_ex] < width_ex[i]){
+									max_ex = i;
+								}
+							}
+							emagency_move[p].push({1,max_ex});
+							get<4>(mason_info[p]) = true;
+							result_move[p] = {1,max_ex};
+						}
+						else{
+							result_move[p] = {move_cource[max_score_itr][0].first,move_cource[max_score_itr][0].second};
+						}
+					}
+				}
 				get<0>(mason_info[p]) = max_score_itr;
 				get<1>(mason_info[p]) = 1;
 				get<2>(mason_info[p]) = 0;
@@ -593,6 +734,8 @@ void move(){
 				hyouka(p,4);
 			}
 		}
+
+
 	}
 }
 
@@ -708,6 +851,8 @@ int main(){
 				move();
 				
 				progress_debug(turn_l);
+				//cout << get<3>(mason_info[2]) << endl;
+				cout << succeeded[4] << endl;
 
 				turn_l += 2;
 
