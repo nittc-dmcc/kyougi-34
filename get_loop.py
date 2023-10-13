@@ -6,7 +6,7 @@ import time
 
 start = time.time()
 
-get_url='http://localhost:3000/matches/10?token=1'
+get_url='http://localhost:3000/matches/10?token=imizuac5e182743df5c6c7d2140fe5f9e5b4d0f2e1c77a424fc9d2986c9a270f'
 
 header={"Content-Type":"application/json"}
 
