@@ -820,7 +820,6 @@ void progress_debug(int turn_l){//masons walls territories
 	cout << ((double)turn/(double)turn_max)*100.0 << '%' << '(' << turn << '/' << turn_max << ')' << endl;
 }
 
-
 int main(){
 	system("python3 get_first.py");
 	kaiseki();//盤面情報解析
